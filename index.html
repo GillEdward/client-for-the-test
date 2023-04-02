@@ -1,0 +1,175 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset = "utf-8" />
+    <title>Client</title>     
+</head>
+
+<body>
+    <input type = "text" placeholder = "PlayerID" id = "player-id" value = "" />
+    <input type = "text" value = "RGB(0, 0, 0)" id = "player-color">
+    <button type = "button" id = "login" >login</button>
+    <button type = "button" id = "logout" >logout</button>
+    <div id = "res"></div>
+
+    <canvas id = "map" style="border:1px solid;" width = "600" height = "600"></canvas>
+</body>
+</html>
+
+<script src = "jquery.js"></script>
+
+<script type = "text/javascript">
+    // jquery
+
+    $('#login').click(function(){ // 点击按钮发送登入信息 // Click to login and send player-id to server
+        playerId = $('#player-id').val()
+        playerColor = $('#player-color').val()
+        //console.log(playerColor)
+        ws.send(JSON.stringify({"player-id" : playerId, "action" : "login", "color" : playerColor}))
+    })
+    $('#logout').click(function(){ // 点击按钮发送登出信息    // Click to logout and send player-id to server
+        ws.send(JSON.stringify({"player-id" : playerId, "action" : "logout"}))
+    })
+</script>
+
+<script type = "text/javascript"> 
+    // websocket
+
+    var playerId = ""
+    var playerColor = ""
+    var playerList = {}
+
+    var ws = new WebSocket("ws://127.0.0.1:3000/")  // Local test
+
+    ws.onopen = function(){
+        document.getElementById('res').innerHTML = "Connected! Input Your PlayerID and the color you want in the form of RGB(R, G, B)"
+    }
+
+    ws.onmessage = function (evt){
+        json = JSON.parse(evt.data)
+        $('#res').text("<Message from " + json["player-id"] + ">\n<Action: " + json["action"] + ">\n<value: " + json["value"] + ">")
+
+        switch(json["action"]){
+            case "newPlayerLogin":
+                playerList[json["player-id"]] = json["value"]
+                break
+            case "loadIn":
+                playerList = json["value"]
+                break
+            case "playerLogout":
+                delete playerList[json["player-id"]]
+                break
+            case "logout":
+                delete playerList
+                $('#res').text("Logout!")
+                break
+            case "moving":
+                playerList[json["player-id"]]["action"] = "moving" + [json["value"]]   // 修改指定玩家动作    // change player's action
+                break
+            case "movementDone":
+                playerList[json["player-id"]]["action"] = "standing"
+                playerList[json["player-id"]]["pos"] = json["value"]
+                break
+        }
+
+        for(var key in playerList){  // 显示playerList // print playerList for debug
+            console.log(key + " at " + playerList[key]["pos"])
+
+            switch(playerList[key]["action"]){  // 改变移动中玩家的坐标   // change moving player's pos
+                case "movingLeft":
+                    playerList[key]["pos"][0] -= 1
+                    break
+                case "movingUp":
+                    playerList[key]["pos"][1] += 1
+                    break
+                case "movingRight":
+                    playerList[key]["pos"][0] += 1
+                    break
+                case "movingDown":
+                    playerList[key]["pos"][1] -= 1
+                    break
+            }
+        }
+        console.log("\n\n")
+
+        update()
+    }
+    
+    ws.onclose = function()
+    { 
+        $('#res').text("Disconnected!")
+    }
+</script>
+
+<script type = "text/javascript">
+    // keyboard event
+
+    $(document).keydown(function(key){    // 按键按下   // pressdown
+        if(key.keyCode >= 37 && key.keyCode <= 40){
+            var movingDirection = 0b0000
+            switch(key.keyCode) {  
+                case 37:    // Left
+                    movingDirection |= 0b1000
+                    break  
+                case 38:    // Up
+                    movingDirection |= 0b0100
+                    break
+                case 39:    // Right
+                    movingDirection |= 0b0010
+                    break
+                case 40:    // Down
+                    movingDirection |= 0b0001
+                    break
+            }
+            if(playerList[playerId]["action"] == "standing"){
+                ws.send(JSON.stringify({"player-id" : playerId, "action" : "moving", "value" : movingDirection}))
+                playerList[playerId]["action"] == "moving"
+            }
+        }
+    });
+
+    $(document).keyup(function(key){    // 按键松开 // keyup
+        if(key.keyCode >= 37 && key.keyCode <= 40){
+            ws.send(JSON.stringify({"player-id" : playerId, "action" : "movementDone", "value" : playerList[playerId]["pos"]}))
+        }
+    });
+</script>
+
+<script type = "text/javascript">
+    // Timer and Draw
+
+    setInterval(function(){ //更新玩家位置坐标  // update players' pos
+        for(var key in playerList){
+            switch(playerList[key]["action"]){  // 改变移动中玩家的坐标   // change moving player's pos
+                case "movingLeft":
+                    playerList[key]["pos"][0] -= 1
+                    break
+                case "movingUp":
+                    playerList[key]["pos"][1] += 1
+                    break
+                case "movingRight":
+                    playerList[key]["pos"][0] += 1
+                    break
+                case "movingDown":
+                    playerList[key]["pos"][1] -= 1
+                    break
+            }
+        }
+
+        update()
+    }, 20);  // 50Hz
+
+    var map = document.getElementById("map")
+    var context = map.getContext("2d") // 2D
+
+    function update(){
+        context.clearRect(0, 0, 600, 600)
+        for(var player in playerList){
+            x = playerList[player]["pos"][0]
+            y = playerList[player]["pos"][1]
+            context.fillStyle = playerList[player]["color"]
+            context.fillRect(x - 2 + 300, - y - 2 + 300, 4, 4)   //(x, y, width, height)
+        }
+    }
+
+</script>
