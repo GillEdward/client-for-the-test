@@ -39,7 +39,8 @@
     var playerColor = ""
     var playerList = {}
 
-    var ws = new WebSocket("ws://127.0.0.1:3000/")  // Local test
+    var ws = new WebSocket("ws://8.130.89.159:3000/")  // Web server
+    //var ws = new WebSocket("ws://127.0.0.1:3000/")  // Local test
 
     ws.onopen = function(){
         document.getElementById('res').innerHTML = "Connected! Input Your PlayerID and the color you want in the form of RGB(R, G, B)"
